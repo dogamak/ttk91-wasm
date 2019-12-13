@@ -22,3 +22,13 @@ jobs:
       with:
         name: ttk91-wasm
         path: pkg/
+    - uses: actions/setup-node@v1.1.0
+      with:
+        version: 10
+        registry-url: https://npm.pkg.github.com
+        scope: '@dogamak'
+    - name: Publish to GitHub Package Registry
+      working-directory: pkg/
+      run: npm publish
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.GITHUB_PUBLISH_TOKEN }}
