@@ -16,7 +16,7 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
     - name: Build WebAssembly
-      run: wasm-pack build
+      run: wasm-pack build --scope dogamak
     - name: Upload WebAssembly package as an artifact
       uses: actions/upload-artifact@v1.0.0
       with:
