@@ -1,6 +1,6 @@
 name: Rust
 
-on: [push]
+on: [push, repository_dispatch]
 
 jobs:
   build:
