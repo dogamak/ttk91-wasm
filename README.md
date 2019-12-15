@@ -8,4 +8,4 @@
 ## Overview
 
 This crate provides WebAssembly bindings for the [`ttk91-rs`](https://github.com/dogamak/ttk91-rs) crate.
-Primarily meant for use in [`ttk91-web`](https://github.com/dogamak/ttk91-web) so documentation, API ergonimics or other use-cases are, at least for now, a priority.
+Primarily meant for use in [`ttk91-web`](https://github.com/dogamak/ttk91-web) so documentation, API ergonomics or other use-cases are ourside of `ttk91-web`, at least for now, not a priority.
