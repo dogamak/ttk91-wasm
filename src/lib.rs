@@ -47,17 +47,17 @@ pub fn parse(assembly: &str) -> Result<SymbolicProgram, JsValue> {
 }
 
 struct QueueIO {
-    input: Vec<u16>,
-    output: Vec<u16>, 
+    input: Vec<i32>,
+    output: Vec<i32>, 
     calls: Vec<u16>,
 }
 
 impl InputOutput for QueueIO {
-    fn input(&mut self, _device: u16) -> u16 {
+    fn input(&mut self, _device: u16) -> i32 {
         self.input.remove(0)
     }
 
-    fn output(&mut self, _device: u16, data: u16) {
+    fn output(&mut self, _device: u16, data: i32) {
         self.output.push(data);
     }
 
@@ -78,16 +78,16 @@ impl QueueIO {
 
 #[wasm_bindgen]
 pub struct Output {
-    output: Vec<u16>,
+    output: Vec<i32>,
     calls: Vec<u16>,
     pub line: u32,
 }
 
 #[wasm_bindgen]
 impl Output {
-    pub fn output(&self) -> js_sys::Uint16Array {
+    pub fn output(&self) -> js_sys::Int32Array {
         unsafe {
-            js_sys::Uint16Array::view(self.output.as_slice())
+            js_sys::Int32Array::view(self.output.as_slice())
         }
     }
 
@@ -100,13 +100,13 @@ impl Output {
 
 #[wasm_bindgen]
 pub struct WasmEmulator {
-    emulator: Emulator<Vec<u32>, QueueIO>,
+    emulator: Emulator<Vec<i32>, QueueIO>,
     source_map: HashMap<u16, usize>,
 }
 
 #[wasm_bindgen]
 impl WasmEmulator {
-    pub fn registers(&self) -> Vec<u16> {
+    pub fn registers(&self) -> Vec<i32> {
         self.emulator.context.r.to_vec()
     }
 
@@ -124,6 +124,14 @@ impl WasmEmulator {
             line: *line as u32,
         }
     }
+
+    pub fn stack_pointer(&self) -> u16 {
+        self.emulator.context.r[7] as u16
+    }
+
+    pub fn read_addr(&mut self, addr: u16) -> i32 {
+        self.emulator.memory.get_data(addr).unwrap()
+    }
 }
 
 #[wasm_bindgen]
@@ -132,7 +140,8 @@ pub fn create_emulator(asm: &str) -> WasmEmulator {
     let result = program.compile_sourcemap();
     let memory = result.compiled.to_words();
 
-    let emulator = Emulator::new(memory, QueueIO::new());
+    let emulator = Emulator::new(memory, QueueIO::new())
+        .unwrap();
 
     WasmEmulator {
         emulator,
@@ -141,14 +150,14 @@ pub fn create_emulator(asm: &str) -> WasmEmulator {
 }
 
 #[wasm_bindgen]
-pub fn execute(asm: &str) -> Vec<u16> {
+pub fn execute(asm: &str) -> Vec<i32> {
     let program = Program::parse(asm).unwrap();
     let compiled = program.compile();
     let memory = compiled.to_words();
 
     let mut io = TestIo::new();
 
-    let mut emulator = Emulator::new(memory, &mut io);
+    let mut emulator = Emulator::new(memory, &mut io).unwrap();
     emulator.run().unwrap();
 
     io.into_output()
