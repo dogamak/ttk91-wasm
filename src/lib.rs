@@ -3,11 +3,13 @@ mod utils;
 use wasm_bindgen::prelude::*;
 use ttk91::{
     symbolic::Program,
-    emulator::{Emulator, Memory, TestIo, InputOutput},
+    emulator::{Emulator, BalloonMemory, Memory, TestIo, InputOutput, Event, EventListener},
 };
 
 use serde_json::json;
 use std::collections::HashMap;
+use std::sync::Mutex;
+use std::rc::Rc;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -47,17 +49,17 @@ pub fn parse(assembly: &str) -> Result<SymbolicProgram, JsValue> {
 }
 
 struct QueueIO {
-    input: Vec<u16>,
-    output: Vec<u16>, 
+    input: Vec<i32>,
+    output: Vec<i32>, 
     calls: Vec<u16>,
 }
 
 impl InputOutput for QueueIO {
-    fn input(&mut self, _device: u16) -> u16 {
+    fn input(&mut self, _device: u16) -> i32 {
         self.input.remove(0)
     }
 
-    fn output(&mut self, _device: u16, data: u16) {
+    fn output(&mut self, _device: u16, data: i32) {
         self.output.push(data);
     }
 
@@ -78,16 +80,16 @@ impl QueueIO {
 
 #[wasm_bindgen]
 pub struct Output {
-    output: Vec<u16>,
+    output: Vec<i32>,
     calls: Vec<u16>,
     pub line: u32,
 }
 
 #[wasm_bindgen]
 impl Output {
-    pub fn output(&self) -> js_sys::Uint16Array {
+    pub fn output(&self) -> js_sys::Int32Array {
         unsafe {
-            js_sys::Uint16Array::view(self.output.as_slice())
+            js_sys::Int32Array::view(self.output.as_slice())
         }
     }
 
@@ -98,16 +100,97 @@ impl Output {
     }
 }
 
+#[derive(Clone)]
+struct EventRelay {
+    listeners: Rc<Mutex<HashMap<String, Vec<js_sys::Function>>>>,
+    universal: Rc<Mutex<Vec<js_sys::Function>>>,
+}
+
+impl EventRelay {
+    fn new() -> EventRelay {
+        EventRelay {
+            listeners: Rc::new(Mutex::new(HashMap::new())),
+            universal: Rc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    fn add_listener(&mut self, event: String, listener: js_sys::Function) {
+        if event == "*" {
+            self.universal
+                .lock()
+                .unwrap()
+                .push(listener);
+        } else {
+            self.listeners
+                .lock()
+                .unwrap()
+                .entry(event)
+                .or_default()
+                .push(listener);
+        }
+    }
+}
+
+impl EventListener for EventRelay {
+    fn event(&mut self, event: &Event) {
+        let name = match event {
+            Event::SupervisorCall { .. } => "supervisor-call",
+            Event::MemoryChange { .. } => "memory-change",
+            Event::RegisterChange { .. } => "register-change",
+        };
+
+        let universal = self.universal.lock().unwrap();
+        let listeners = self.listeners.lock().unwrap();
+
+        let listeners = listeners
+            .get(name)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+            .iter()
+            .chain(universal.iter());
+
+        let object = match event {
+            Event::SupervisorCall { code } => json!({
+                "code": code
+            }),
+            Event::MemoryChange { address, data } => json!({
+                "address": address,
+                "data": data,
+            }),
+            Event::RegisterChange { register, data } => json!({
+                "register": register.index(),
+                "data": data,
+            }),
+        };
+
+        let object = json!({
+            "type": name,
+            "payload": object,
+        });
+
+        let object = JsValue::from_serde(&object).unwrap();
+
+        for listener in listeners {
+            listener.call1(&JsValue::NULL, &object).unwrap();
+        }
+    }
+}
+
 #[wasm_bindgen]
 pub struct WasmEmulator {
-    emulator: Emulator<Vec<u32>, QueueIO>,
+    emulator: Emulator<BalloonMemory, QueueIO>,
     source_map: HashMap<u16, usize>,
+    relay: EventRelay,
 }
 
 #[wasm_bindgen]
 impl WasmEmulator {
-    pub fn registers(&self) -> Vec<u16> {
+    pub fn registers(&self) -> Vec<i32> {
         self.emulator.context.r.to_vec()
+    }
+
+    pub fn add_listener(&mut self, event: String, listener: js_sys::Function) {
+        self.relay.add_listener(event, listener);
     }
 
     pub fn step(&mut self) -> Output {
@@ -124,31 +207,45 @@ impl WasmEmulator {
             line: *line as u32,
         }
     }
+
+    pub fn stack_pointer(&self) -> u16 {
+        self.emulator.context.r[7] as u16
+    }
+
+    pub fn read_address(&mut self, addr: u16) -> i32 {
+        self.emulator.memory.get_data(addr).unwrap()
+    }
 }
 
 #[wasm_bindgen]
 pub fn create_emulator(asm: &str) -> WasmEmulator {
     let program = Program::parse(asm).unwrap();
     let result = program.compile_sourcemap();
-    let memory = result.compiled.to_words();
+    let memory = BalloonMemory::new(result.compiled);
+    let relay = EventRelay::new();
 
-    let emulator = Emulator::new(memory, QueueIO::new());
+    let mut emulator = Emulator::new(memory, QueueIO::new())
+        .unwrap();
+
+    emulator.add_listener(relay.clone());
 
     WasmEmulator {
         emulator,
         source_map: result.source_map,
+        relay,
     }
 }
 
 #[wasm_bindgen]
-pub fn execute(asm: &str) -> Vec<u16> {
+pub fn execute(asm: &str) -> Vec<i32> {
     let program = Program::parse(asm).unwrap();
     let compiled = program.compile();
     let memory = compiled.to_words();
 
     let mut io = TestIo::new();
 
-    let mut emulator = Emulator::new(memory, &mut io);
+    let mut emulator = Emulator::new(memory, &mut io).unwrap();
+
     emulator.run().unwrap();
 
     io.into_output()
