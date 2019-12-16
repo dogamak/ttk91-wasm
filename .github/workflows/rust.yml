@@ -31,7 +31,7 @@ jobs:
     - uses: actions/download-artifact@v1.0.0
       with:
         name: ttk91wasm-pkg
-        dest: pkg/
+        path: pkg/
     - name: Upload WebAssembly package as an artifact
       uses: actions/upload-artifact@v1.0.0
       with:
