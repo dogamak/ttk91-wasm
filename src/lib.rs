@@ -3,7 +3,8 @@ mod utils;
 use wasm_bindgen::prelude::*;
 use ttk91::{
     symbolic::Program,
-    emulator::{Emulator, BalloonMemory, Memory, TestIo, InputOutput, Event, EventListener},
+    emulator::{Emulator, BalloonMemory, Memory, TestIo, InputOutput},
+    event::{Event, EventListener},
 };
 
 use serde_json::json;
