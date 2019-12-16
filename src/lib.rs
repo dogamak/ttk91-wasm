@@ -250,7 +250,8 @@ pub fn execute(asm: &str) -> Vec<i32> {
 
     let mut io = TestIo::new();
 
-    let mut emulator = Emulator::new(memory, &mut io).unwrap();
+    let mut emulator = Emulator::new(memory, &mut io)
+        .unwrap();
 
     emulator.run().unwrap();
 
