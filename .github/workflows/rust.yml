@@ -17,6 +17,21 @@ jobs:
       run: cargo test --verbose
     - name: Build WebAssembly
       run: wasm-pack build --scope dogamak
+    - uses: actions/upload-artifact@v1.0.0
+      with:
+        name: ttk91wasm-pkg
+        path: pkg/
+      
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: contains(github.ref, 'master')
+    
+    steps:
+    - uses: actions/download-artifact@v1.0.0
+      with:
+        name: ttk91wasm-pkg
+        dest: pkg/
     - name: Upload WebAssembly package as an artifact
       uses: actions/upload-artifact@v1.0.0
       with:
