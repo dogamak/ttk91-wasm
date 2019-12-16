@@ -138,6 +138,7 @@ impl EventListener for EventRelay {
             Event::SupervisorCall { .. } => "supervisor-call",
             Event::MemoryChange { .. } => "memory-change",
             Event::RegisterChange { .. } => "register-change",
+            Event::Output { .. } => "output",
         };
 
         let universal = self.universal.lock().unwrap();
@@ -160,6 +161,10 @@ impl EventListener for EventRelay {
             }),
             Event::RegisterChange { register, data } => json!({
                 "register": register.index(),
+                "data": data,
+            }),
+            Event::Output { device, data } => json!({
+                "device": device,
                 "data": data,
             }),
         };
