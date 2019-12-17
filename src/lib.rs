@@ -186,6 +186,7 @@ impl EventListener for EventRelay {
 pub struct WasmEmulator {
     emulator: Emulator<BalloonMemory, QueueIO>,
     source_map: HashMap<u16, usize>,
+    symbol_table: HashMap<String, u16>,
     relay: EventRelay,
 }
 
@@ -221,12 +222,19 @@ impl WasmEmulator {
     pub fn read_address(&mut self, addr: u16) -> i32 {
         self.emulator.memory.get_data(addr).unwrap()
     }
+
+    /// Return an object that contains symbol names as keys and their memory
+    /// addresses as the values.
+    pub fn symbol_table(&self) -> JsValue {
+        JsValue::from_serde(&self.symbol_table).unwrap()
+    }
 }
 
 #[wasm_bindgen]
 pub fn create_emulator(asm: &str) -> WasmEmulator {
     let program = Program::parse(asm).unwrap();
     let result = program.compile_sourcemap();
+    let symbol_table = result.compiled.symbol_table.clone();
     let memory = BalloonMemory::new(result.compiled);
     let relay = EventRelay::new();
 
@@ -239,6 +247,7 @@ pub fn create_emulator(asm: &str) -> WasmEmulator {
         emulator,
         source_map: result.source_map,
         relay,
+        symbol_table,
     }
 }
 
