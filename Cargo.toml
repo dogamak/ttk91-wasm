@@ -1,6 +1,6 @@
 [package]
 name = "ttk91-wasm"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Mitja Karhusaari <mitja@karhusaari.me>"]
 edition = "2018"
 
