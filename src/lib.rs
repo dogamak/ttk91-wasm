@@ -228,6 +228,13 @@ impl WasmEmulator {
     pub fn symbol_table(&self) -> JsValue {
         JsValue::from_serde(&self.symbol_table).unwrap()
     }
+
+    /// Get source map of the currently loaded program as a map object that
+    /// associates memory addresses (keys) with source code lines (values).
+    pub fn source_map(&self) -> JsValue {
+        JsValue::from_serde(&self.source_map)
+            .unwrap_or(JsValue::NULL)
+    }
 }
 
 #[wasm_bindgen]
