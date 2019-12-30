@@ -10,9 +10,10 @@ script:
 
 deploy:
   edge: true
-  provider: npm
-  email: mitja+npm@karhusaari.me
-  api_key: $NPM_TOKEN
+  provider: script
+  script: |
+    cd ./pkg/
+    npm publish
   on:
     tags: true
     repo: dogamak/ttk91-wasm
