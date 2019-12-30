@@ -9,6 +9,7 @@ script:
 - wasm-pack build
 
 deploy:
+  edge: true
   provider: npm
   email: mitja+npm@karhusaari.me
   api_key:
