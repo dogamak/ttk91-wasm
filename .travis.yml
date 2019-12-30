@@ -1,9 +1,9 @@
 language: rust
 cache: cargo
 
-before_install: cargo install wasm-pack
-
-install: cargo update
+install: |
+  cargo install wasm-pack
+  cargo update
 
 script:
 - wasm-pack build
