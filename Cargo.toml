@@ -1,6 +1,6 @@
 [package]
 name = "ttk91-wasm"
-version = "0.1.3-rc1"
+version = "0.1.3"
 authors = ["Mitja Karhusaari <mitja@karhusaari.me>"]
 edition = "2018"
 
@@ -12,8 +12,8 @@ default = ["console_error_panic_hook"]
 
 [dependencies]
 wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
-js-sys = "*"
-serde_json = "*"
+js-sys = "0.3.33"
+serde_json = "1.0.44"
 
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
@@ -29,7 +29,7 @@ console_error_panic_hook = { version = "0.1.1", optional = true }
 wee_alloc = { version = "0.4.2", optional = true }
 
 [dependencies.ttk91]
-git = "https://github.com/dogamak/ttk91-rs"
+git = "https://github.com/dogamak/ttk91-rs#6840681"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.2"

@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/ttk91wasm-logo.svg" /></p>
+<p align="center"><img src="https://github.com/dogamak/ttk91-rs/blob/master/assets/ttk91rs-logo.svg" /></p>
 <p align="center">
   <a href="https://travis-ci.com/dogamak/ttk91-wasm">
     <img src="https://travis-ci.com/dogamak/ttk91-wasm.svg?branch=master" />
