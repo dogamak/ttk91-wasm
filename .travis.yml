@@ -12,8 +12,6 @@ deploy:
   edge: true
   provider: script
   script: ./publish.sh
-  - cd ./pkg/
-  - npm publish
   on:
     tags: true
     repo: dogamak/ttk91-wasm
