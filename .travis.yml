@@ -1,0 +1,18 @@
+language: rust
+cache: cargo
+
+install: |
+  cargo install wasm-pack
+  cargo update
+
+script:
+- wasm-pack build
+
+deploy:
+  provider: npm
+  email: mitja+npm@karhusaari.me
+  api_key:
+    secure: 6Di1s/7+sJp/YVIlSuLtBqiat5eURAm7Ftx6LzBzRHXsuGRfBoIF+u/sGZPiCt13KEQCsw0uUs3fsUaOjK7SFUQqYWhVYev3/QN7yq2zib1/8h7wpIaD05nanBf46Afq1EeOK0okQULjk3M/ilVQik765FoFrkUpkO3HmdBdcj20o40xx9LsS96G74JDnNQA/A1pZvThJU0Z/2YRlKGsa25CnF9Y4BOwezw73oeUhDr+4q569YrMrBHv37dqJ1YmhAYt5d541pgAFzAqsCDQrieEfLLi/rWTGgN4yh3uP67sZ9RsKUtXxmJ4ZSi3lgdrn9y2C0Bo5+onPKuNXwmOcXQTjYf3vT4ZjUpemh7c8wc28sOz+sSk9F83e5M/8G4OMKvhdVSc4nzFXHywfkf4mK57FsZKBKproLD3YSreswOZ6D/EFbEoLw9ZUcjV6T7jTThZ/VT/Jk5BERdggbWWM9tVZUo8E1UvTpTvi5vEhe8ZkRlkZBF+Ob1amZo4eK4rqGHF6jcd01FNVNBPuPY+if7O+MjKutsW/1n9cFEKFFOj2IAmN0k/5KhWIrMdT2P3N8XCtnZFM4Egt6ttSM0kkrHzN5QHSeKwJaqk+FIOEKCq9PygeG83fLFZ9Bz0ZajCU0aqK5eA4hgt2Ig91EfqOOKW2Y7DP5mkolJM3inKmH8=
+  on:
+    tags: true
+    repo: dogamak/ttk91-wasm

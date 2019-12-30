@@ -1,8 +1,11 @@
 <p align="center"><img src="assets/ttk91wasm-logo.svg" /></p>
 <p align="center">
-  <img src="https://github.com/dogamak/ttk91-wasm/workflows/Rust/badge.svg" />
-  <img src="https://docs.rs/ttk91wasm/badge.svg" />
-  <img src="https://img.shields.io/crates/v/ttk91-wasm.svg" />
+  <a href="https://travis-ci.com/dogamak/ttk91-wasm">
+    <img src="https://travis-ci.com/dogamak/ttk91-wasm.svg?branch=master" />
+  </a>
+  <a href="https://npmjs.com/package/ttk91-wasm">
+    <img src="https://badge.fury.io/js/ttk91-wasm.svg" />
+  </a>
 </p>
 
 ## Overview
