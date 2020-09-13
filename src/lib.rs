@@ -2,11 +2,15 @@ mod utils;
 
 use wasm_bindgen::prelude::*;
 use ttk91::{
-    symbolic::Program,
+    parsing::{Context, LineSpan},
+    symbolic::{Program, parser::ParseError},
+    symbol_table::{Label, Value},
     emulator::{Emulator, BalloonMemory, Memory, TestIo, InputOutput},
     event::{Event, EventListener},
+    source_map::SourceMap,
 };
 
+use serde_derive::Serialize;
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -24,27 +28,97 @@ pub fn init_panic_hook() {
 }
 
 #[wasm_bindgen]
-pub struct ParseError {
-    pub line: usize,
-    pub column: usize,
+#[derive(Serialize, Debug, Clone, Copy)]
+pub enum ParseErrorLevel {
+    Suggestion,
+    Error,
+}
+
+#[wasm_bindgen]
+#[derive(Serialize)]
+pub struct JsParseError {
+    pub level: ParseErrorLevel,
+    pub start_line: usize,
+    pub start_column: usize,
+    pub end_line: usize,
+    pub end_column: usize,
+    message: String,
+}
+
+#[wasm_bindgen]
+impl JsParseError {
+    #[wasm_bindgen(getter)]
+    pub fn message(&self) -> String {
+        self.message.clone()
+    }
 }
 
 #[wasm_bindgen]
 pub struct SymbolicProgram {
-    program: ttk91::symbolic::Program,
+    program: Program,
+}
+
+fn calculate_position(input: &str, offset: usize) -> (usize, usize) {
+    input[..offset]
+        .split('\n')
+        .fold((0,0), |(l,_), line| (l+1, line.len()))
+}
+
+fn into_js_errors(input: &str, error: ParseError) -> Vec<JsParseError> {
+    let offset = error.span()
+        .map(|span| span.start)
+        .unwrap_or(input.len());
+
+    let (start_line, start_column, end_line, end_column) = match error.span() {
+        Some(span) => {
+            let (sl, sc) = calculate_position(input, span.start);
+            let (el, ec) = calculate_position(input, span.end);
+            (sl, sc, el, ec)
+        },
+        None => (0, 0, 0, 0),
+    };
+
+    let mut results = Vec::new();
+
+    results.push(JsParseError {
+        level: ParseErrorLevel::Error,
+        start_line,
+        start_column,
+        end_line,
+        end_column,
+        message: error.to_string(),
+    });
+
+    for ctx in error.get_context() {
+        if let Context::Suggestion { span, message } = ctx {
+            let (start_line, start_column) = calculate_position(input, span.start);
+            let (end_line, end_column) = calculate_position(input, span.end);
+
+            results.push(JsParseError {
+                level: ParseErrorLevel::Suggestion,
+                start_line,
+                start_column,
+                end_line,
+                end_column,
+                message: message.to_string(),
+            });
+        }
+    }
+
+    results
 }
 
 #[wasm_bindgen]
-pub fn parse(assembly: &str) -> Result<SymbolicProgram, JsValue> {
-    ttk91::symbolic::Program::parse(assembly)
+pub fn parse(input: &str) -> Result<SymbolicProgram, JsValue> {
+    Program::parse_verbose(input)
         .map(|program| SymbolicProgram { program })
-        .map_err(|err| {
-            let err = err.verbose(assembly);
-            JsValue::from_serde(&json!({
-                "error": err.to_string(),
-                "line": err.line,
-                "column": err.column,
-            })).unwrap()
+        .map_err(|errors| {
+            let errors = errors.into_iter()
+                .map(|error| into_js_errors(input, error))
+                .flatten()
+                .collect::<Vec<_>>();
+
+            JsValue::from_serde(&errors).unwrap()
         })
         //(err.verbose(assembly).line as u32).into())
 }
@@ -185,7 +259,7 @@ impl EventListener for EventRelay {
 #[wasm_bindgen]
 pub struct WasmEmulator {
     emulator: Emulator<BalloonMemory, QueueIO>,
-    source_map: HashMap<u16, usize>,
+    source_map: SourceMap<LineSpan>,
     symbol_table: HashMap<String, u16>,
     relay: EventRelay,
 }
@@ -194,6 +268,10 @@ pub struct WasmEmulator {
 impl WasmEmulator {
     pub fn registers(&self) -> Vec<i32> {
         self.emulator.context.r.to_vec()
+    }
+
+    pub fn get_program_counter(&self) -> u16 {
+        self.emulator.context.pc
     }
 
     pub fn add_listener(&mut self, event: String, listener: js_sys::Function) {
@@ -206,21 +284,26 @@ impl WasmEmulator {
         let output = self.emulator.io.output.clone();
         let calls = self.emulator.io.calls.clone();
 
-        let line = self.source_map.get(&(self.emulator.context.pc)).unwrap_or(&0);
+        let line = self.source_map.get_source_span(self.emulator.context.pc as usize)
+            .map(|span| span.start.line)
+            .unwrap_or(0);
 
         Output {
             output,
             calls,
-            line: *line as u32,
+            line: line as u32,
         }
     }
 
     pub fn stack_pointer(&self) -> u16 {
-        self.emulator.context.r[7] as u16
+        self.emulator.context.r[6] as u16
     }
 
-    pub fn read_address(&mut self, addr: u16) -> i32 {
-        self.emulator.memory.get_data(addr).unwrap()
+    pub fn read_address(&mut self, addr: u16) -> Result<i32, JsValue> {
+        self.emulator.memory.get_data(addr)
+            .map_err(|_| JsValue::from_serde(&json!({
+                "error": "memory_error",
+            })).unwrap())
     }
 
     /// Return an object that contains symbol names as keys and their memory
@@ -231,18 +314,50 @@ impl WasmEmulator {
 
     /// Get source map of the currently loaded program as a map object that
     /// associates memory addresses (keys) with source code lines (values).
-    pub fn source_map(&self) -> JsValue {
-        JsValue::from_serde(&self.source_map)
-            .unwrap_or(JsValue::NULL)
+    pub fn source_map(&self) -> WasmSourceMap {
+        WasmSourceMap(self.source_map.clone())
     }
 }
 
 #[wasm_bindgen]
-pub fn create_emulator(asm: &str) -> WasmEmulator {
-    let program = Program::parse(asm).unwrap();
-    let result = program.compile_sourcemap();
-    let symbol_table = result.compiled.symbol_table.clone();
-    let memory = BalloonMemory::new(result.compiled);
+pub struct WasmSourceMap(SourceMap<LineSpan>);
+
+#[wasm_bindgen]
+impl WasmSourceMap {
+    fn get_source_line(&self, addr: usize) -> Result<usize, JsValue> {
+        self.0.get_source_span(addr)
+            .map(|span| span.start.line)
+            .ok_or(JsValue::from_serde(&json!({
+                "error": "source_map_error",
+            })).unwrap())
+    }
+}
+
+#[wasm_bindgen]
+pub fn create_emulator(input: &str) -> WasmEmulator {
+    let program = Program::parse(input).unwrap();
+    let program = program.compile();
+    // let result = program.compile_sourcemap();
+
+    /*let source_map = result.source_map.into_iter()
+        .map(|(address, span)| (address, calculate_position(input, span.start).0))
+        .collect();*/
+
+    let symbol_table = program.symbol_table.iter()
+        .filter_map(|symbol| {
+            let label = symbol.get::<Label>().into_owned();
+            let value = symbol.get::<Value>().into_owned();
+
+            match value {
+                Some(value) => Some((label, value as u16)),
+                None => None,
+            }
+        })
+        .collect();
+
+    let source_map = program.source_map.clone().into_line_based(input);
+
+    let memory = BalloonMemory::new(program);
     let relay = EventRelay::new();
 
     let mut emulator = Emulator::new(memory, QueueIO::new())
@@ -252,7 +367,7 @@ pub fn create_emulator(asm: &str) -> WasmEmulator {
 
     WasmEmulator {
         emulator,
-        source_map: result.source_map,
+        source_map,
         relay,
         symbol_table,
     }
